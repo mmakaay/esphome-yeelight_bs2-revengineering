@@ -21,22 +21,22 @@ bit flashy bright in the middle.
 
 ## How come?
 
-My assumption here was that the transitions happened at the wrong level.
+My assumption here is that the transitions happens at the wrong level.
 The ESPHome light framework handles transitioning between different settings
-by linearly transitioning the individual light properties over time.  As I
+by linearly transitioning the individual light properties over time. As I
 found by doing measurements, the original firmware of the lamp uses linear
-transitioning at the level of the GPIO duty cycle outputs.  So put
+transitioning at the level of the GPIO duty cycle outputs. So put
 differently: ESPHome transitions over the input values, whereas the device
 transitions over the output values.
 
 This would not be a problem, when a clean relation between the input and
 output values would exist. However, this is not the case.
 
-In the [GPIO measurements.xlsx](GPIO measurements.xlsx) spreadsheet, you can
-find a lot of measurements that I took, to see how the original device
-firmware drives the LED circuitry. As you can see there, the required GPIO
-output levels are very irregular. Quite different from the levels that are
-applied by the default ESPHome code.
+In the GPIO measurements.xlsx spreadsheet, you can find a lot of
+measurements that I took, to see how the original device firmware drives the
+LED circuitry. As you can see there, the required GPIO output levels are
+very irregular. Quite different from the levels that are applied by the
+default ESPHome code.
 
 ## Anything else?
 
@@ -54,7 +54,7 @@ have to handle transitioning differently. The requirements here would be to:
 - handle light setting changes by taking the current GPIO output levels,
   finding the required new GPIO output levels and transitioning linearly
   between those two;
-- disable transitioning when appropriate.
+- disable the transitioning time when appropriate.
 
 Unfortunately, this is not an easy thing to implement. Reason for this, is the
 structure of the ESPHome light code, which uses dependency injection to stitch
@@ -77,13 +77,56 @@ In a dependency graph, this looks somewhat like this:
          +---------^----------+
                    |
          +---------+---------+
-         | light::LightState |----> various helper classes
-         +-------------------+
+         | light::LightState |----> various helper classes, e.g.
+         +-------------------+      light:LightTransformer
+                                    light::LightColorValues
+                                    light::LightCall
+
 ```
 
 All that the `light::LightOutput` implementation does, is receive some input
-from the `light::LightState` and apply that to the physical light(s). This
-means that the light output has no handles whatsoever to implement the
-requirements from above.
+in form of a `light::LightState` object, and apply that to the physical
+light(s). This means that the light output has no handles whatsoever to
+implement the requirements from above.
+
+## Access the LightTransformer?
+
+There is another light component, that also requires more control over the
+transitioning: `esphome::light::AddressableLight`. The implementation of
+this class accesses `state->transformer_` to get access to the required end
+state of an ongoing transition.
+
+However, this field is classified as protected and there is no getter method
+to access its contents.
+
+The reason that the addressable light is able to access the transformer, is
+that it is specifically registered as a `friend class AddressableLight`
+in the LightState code. This means that the esphome code does recognize
+that a use case does exist for accessing the transformer, but that the
+transformer was not exposed in such way that custom components can make use
+of it.
+
+## Access the LightState->remote_values?
+
+One property that I can access from within my light output code, is the
+`remote_values` field of the light state. That might provide some information that can be used to detect a transition.
+I did some investigation in this, and found that this was not feasible.
+
+- For handling a transition, we would need to recognize that a transition is
+  in progress. Unfortunately, the only transition that I can recognize is
+  when turning on or off the light. For those transitions, the state field
+  will contain a fractional number between 0 and 1. When The light is on and
+  a new color is selected, this state will always be 1 during the
+  transition.
+
+- Even when there is a way to detect an ongoing transition, the
+  remote_values would not provide enough information to handle things
+  correctly. For example when flashing the light, the remote_values only
+  contain the target light color for the flash. There is no indication that
+  this is supposed to be a flash and that the light should return to its
+  original state after the flash. It basically contains the same information
+  as when transitioning to a new color.
+
+My conclusion on this one is that I cannot use it either.
 
 
