@@ -129,4 +129,57 @@ I did some investigation in this, and found that this was not feasible.
 
 My conclusion on this one is that I cannot use it either.
 
+## Maybe create a LightState subclass?
 
+Since the LightState class has such a central role, maybe it is a good idea
+to create a subclass of it, specifically for the Yeelight BS2 integration.
+The main thing to investigate here, is whether or not it is feasible to
+generate the required code from the component Python code generation layer.
+
+Looking at the configuration input for `def to_code(config)` in my light
+code, the following properties can be found (non-interesing data stripped):
+
+- `id` = ID<type=light::LightState, ...>
+- `output_id` = ID<type=yeelight::YeelightBS2LightOutput, ...>
+
+If I am able to use a different class for `id`, then things might work.
+Let's do a quick test, to see if I can get the code generation to work
+for this idea, by ading the following construct to my `light.py` code:
+
+```python
+yeelight_ns = cg.esphome_ns.namespace("yeelight") 
+bs2_ns = yeelight_ns.namespace("bs2")
+BS2LightState = bs2_ns.class_("BS2LightState", cg.Nameable, cg.Component)
+
+CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
+    {
+            cv.GenerateID(): cv.declare_id(BS2LightState),
+            // ...
+    }
+)
+```
+
+Now when I try to compile the firmware, I get a hopeful error message:
+
+```
+src/main.cpp:21:11: error: 'BS2LightOutput' in namespace 'esphome::yeelight'
+does not name a type
+```
+
+The generated `main.cpp` code now contains the following snippets:
+
+```c++
+yeelight::BS2LightOutput *yeelight_bs2lightoutput;
+yeelight::bs2::BS2LightState *yeelight_bs2_bs2lightstate;
+
+// ...
+
+  yeelight_bs2lightoutput = new yeelight::BS2LightOutput();
+  yeelight_bs2_bs2lightstate = new yeelight::bs2::BS2LightState(
+      "Bedside Lamp Office RGBW Light", yeelight_bs2lightoutput);
+  App.register_light(yeelight_bs2_bs2lightstate);
+  App.register_component(yeelight_bs2_bs2lightstate);                                                                                                        
+```
+
+Wonderful! So this allows me to now override the behavior of the LightState
+class.
