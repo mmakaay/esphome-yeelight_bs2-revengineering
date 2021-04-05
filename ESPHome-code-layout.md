@@ -183,3 +183,93 @@ yeelight::bs2::BS2LightState *yeelight_bs2_bs2lightstate;
 
 Wonderful! So this allows me to now override the behavior of the LightState
 class.
+
+## Yeah but, no but, yeah but ...
+
+Next hurdle: I can have my own derived version of the LightState class. But
+looking at the LightState code, there’s virtually nothing (pun intended) in
+there that I can use for implementing the required behavior. There are only
+a few overridden methods from the Component class, but those don’t provide
+any useful hooks to do my thing.
+
+I cannot simply hide the base class methods by re-implementing them, because
+the LightState is used in polymorph calls. Therefore, my re-implemented
+methods would not be visible to the calling code.
+
+Next idea then: maybe I can add some accessors to my derived LightState
+class, to make it possible for my LightOutput impementation to get access to
+the now missing data.
+
+## Yeah but, ...
+
+I can add extra methods to the derived class, but my LightOutput class is
+unable to access them. The derived LightState class will call the method
+`write_state(light::LightState *state)`, in which polymorphism rules will
+hide the custom methods from the derived class.
+
+It is literally running in cirlces here. With the LightOutput being passed
+to the LightState constuctor and the LightState being passed to the
+LightOutput in the write_state() method. That squishes the options for
+extending the default LightState class.
+
+## Are the responsibilities correctly assigned in ESPHome?
+
+I am getting the strong feeling that the responsibilities in the ESPHome
+light classes aren't as clean as they could be. What I want is my
+LightOutput to be responsible for translating a requested light state or
+transition into the actual GPIO output levels. However, the light classes
+assume that transitions will work correctly, when transitioning over the
+light state properties. My light output class is never in the lead here, and
+can only react to light state changes.
+
+## Okay, one more try
+
+One possibility is to define an extra interface on my custom LightState
+class, that is used for expsing the required data. The LightOutput class can
+get a method to store my custom LightState as a pointer to this extra
+interface. This method can be called from the customer LightState's
+constructor.
+
+It does not feel really clean, but this is a technical possibility to get
+the plumbing going. The concept has been implemented and can be checked
+out in my github repo:
+
+- [a LightStateDataExposer interface class](https://github.com/mmakaay/esphome-yeelight_bs2/blob/92d935b0b47ba4a4457235acf28a37d3e03ee8be/light_output.h#L31)
+- [a setter](https://github.com/mmakaay/esphome-yeelight_bs2/blob/92d935b0b47ba4a4457235acf28a37d3e03ee8be/light_output.h#L78)
+  to pass a LightStateDataExposer to the LightOutput class
+- [use of the LightStateDataExposer](https://github.com/mmakaay/esphome-yeelight_bs2/blob/92d935b0b47ba4a4457235acf28a37d3e03ee8be/light_output.h#L82)
+  in the `write_state` method
+- [the LightState implementation](https://github.com/mmakaay/esphome-yeelight_bs2/blob/92d935b0b47ba4a4457235acf28a37d3e03ee8be/light_output.h#L241)
+  which also implements the LightStateDataExposer interface
+
+This has been validated to work. I can access transitioning settings.
+
+## Great, so now it's full steam ahead?
+
+That remains to be seen. The next hurdle will be exposing enough data
+and interpreting those data correctly. One issue that I already see coming
+up, is that there's knowledge bound to the LightTransformer class that is
+handling a transformation:
+
+- The flash transformer will set the color of the light to a different
+  color for a short period of time. In the data, the flash color will
+  be in the current settings and the original color to return to will be in
+  the target settings.
+ 
+- The transition transformer will gradually change the color of the light
+  from the original settings to the target settings. In the data, the
+  current color will be in the current settings and the target color will be
+  in the target settings.
+
+When only looking from the outside at the data, these two cases look the
+same and it is not clear whether gradual transitioning is done or a flash.
+One could do some heuristics on the transformation over time. When the
+current data do not change while the transformation is running, it likely is
+a flash. One could also check if the transformer class is a flash or a
+transitioning.
+
+Both don't feel right. When the ESPHome light implementation gets a new
+transformer implementation, my LightOutput would have to be updated to
+recognize the new transformer logic. As a fan of the SOLID principles, that
+does not give me warm fuzzy feelings.
+
