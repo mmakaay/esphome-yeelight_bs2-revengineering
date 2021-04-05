@@ -273,3 +273,16 @@ transformer implementation, my LightOutput would have to be updated to
 recognize the new transformer logic. As a fan of the SOLID principles, that
 does not give me warm fuzzy feelings.
 
+## Hrm, again, a dead end...
+
+I decided to go for a setup in which I would do some type checking to find
+out what kind of transition is being handled. I can't get it to work
+though. Using dynamic_cast is prohibited by the `-fno-rtti` compile flag.
+I tried using some polymorphic dispatch calls to work out the active
+tranformer type, but I can only see `std::unique_ptr<LightTransformer>` and
+not the type of the derived class from my code.
+
+All that is left at this point, is looking at the behavior of the active
+tranformer, which brings me to the heuristic path. I don't like where this
+is going. Way too many hoops to get where I need to be.
+
