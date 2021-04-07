@@ -286,3 +286,31 @@ All that is left at this point, is looking at the behavior of the active
 tranformer, which brings me to the heuristic path. I don't like where this
 is going. Way too many hoops to get where I need to be.
 
+## There's a light!
+
+Looking at the LightTransformation classes, there might be a way to handle
+the transformations correctly. The transformer implementations also
+provide a method `is_transition()`. This method can be used to interpret the
+meaning of the current and new LightValues to apply.
+
+This ought to be enough to get going in a somewhat clean manner. The hack to
+get access to the active transformer is still a bit hacky, but the rest
+should be a bit more straightforward.
+
+## TL;DR
+
+I needed a specific implementation for my light transformations, but the
+ESPHome light implementation did not readily provide me with an option to do
+so. After a long search for ways to handle this, I came up with a working
+solution, which is reasonably clean.
+
+The solution comprises of:
+
+- a custom LightState class, which is extended with a special interface that
+  is used for exposing LightTransformer data to my custom LightOutput class.
+  The LightTransformer data are defined as protected, and such cannot be
+  accessed by default from my LightOutput code.
+
+- my custom LightOutput class inspecting the LightTransformer data via this
+  interface, to decide whether or not a transition is in progress and to
+  modify the transitioning behavior when this is the case.
