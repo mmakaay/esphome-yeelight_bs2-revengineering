@@ -69,18 +69,22 @@ In a dependency graph, this looks somewhat like this:
 
 ```
      +---------------------------+
-     | Yeelight BS2 Light Output |
-     +-------------+-------------+
-                   |
-         +---------v----------+
-         | light::LightOutput |
-         +---------^----------+
-                   |
-         +---------+---------+
-         | light::LightState |----> various helper classes, e.g.
-         +-------------------+      light:LightTransformer
-                                    light::LightColorValues
-                                    light::LightCall
+   +-| Yeelight BS2 Light Output |
+   | +-------------+-------------+
+   |               |
+   v            extends
+   |               v
+   |     +--------------------+
+ uses    | light::LightOutput |
+   |     +--------------------+
+   |               ^
+   v              uses
+   |               |
+   |     +---------+---------+
+   +---->| light::LightState |--uses--> various helper classes, e.g.
+         +-------------------+          light:LightTransformer
+                                        light::LightColorValues
+                                        light::LightCall
 
 ```
 
@@ -314,3 +318,29 @@ The solution comprises of:
 - my custom LightOutput class inspecting the LightTransformer data via this
   interface, to decide whether or not a transition is in progress and to
   modify the transitioning behavior when this is the case.
+
+The dependency graph for this solution:
+
+```
+     +---------------------------+      
+  +--| Yeelight BS2 Light Output +---->-------->------+
+  |  +-------------+-------------+                    |
+  |                |                                  v
+  v             extends                               |       
+  |                v                           retrieves light
+  |      +--------------------+                transformer data    
+ uses    | light::LightOutput |                      via              
+  |      +--------------------+                       |
+  |                ^                                  |
+  v               uses                                |
+  |                |                                  v
+  |   +------------+-------------+          +-------------------+
+  +-->| Yeelight BS2 Light State +-extends->| Special Interface |
+      +------------+-------------+          +---------+---------+
+                   |                                  |
+                extends                       exposes data from
+                   v                                  v
+         +-------------------+           +------------------------+
+         | light::LightState +-uses----->| light:LightTransformer |
+         +-------------------+           +------------------------+
+```
