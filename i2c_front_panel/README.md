@@ -5,7 +5,7 @@ color selection) and a touch slider (for setting the brightness level).
 This panel is lit when the device is turned on. The light behind the slider
 will represent the actual brightness setting of the device.
 
-<img src="i2c_front_panel/images/front_panel.jpg" width="150">
+<img src="images/front_panel.jpg" width="150">
 
 
 ## Communication
@@ -34,7 +34,7 @@ a new button or slider event is available. Further details on this can be
 found below.
 
 The reverse engineered 6 byte sequences that can be read and written,
-can be found in the file [i2c_front_panel/i2c_commands.txt](i2c_front_panel/i2c_commands.txt)
+can be found in the file [i2c_commands.txt](i2c_commands.txt)
 
 
 ## Connection to the main board
@@ -43,7 +43,7 @@ The front panel is connected to the main board using a flat cable.
 The picture below shows the connector on the main board, including the
 functions of the cable pins:
 
-<img src="i2c_front_panel/images/front_panel_flat_cable_connection.jpg" width="400">
+<img src="images/front_panel_flat_cable_connection.jpg" width="400">
 
 
 ## Writing commands to the front panel
