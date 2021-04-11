@@ -87,3 +87,50 @@ which will represent the event that occurred.
 The mapping from a received byte sequence into the type of event that
 occurred can be found in the abovementioned I2C commands file.
 
+## Behavior when more events come in than can be handled
+
+When the rate of incoming events is higher than the rate at which events can
+be processed, then there are multiple ways in which that might be handled by
+the device's front panel hardware:
+
+- It might implement a queueing system, resulting in the superfluous event
+  being queued and read later on.
+ 
+- It might not queue, and always return the latest event.
+
+- It might not queue, and only return the latest event once. Followup calls
+  might return a code indicating a "no event available"-style message.
+
+These theories were tested, and it turns out that the second one is correct.
+Here's a snippet of a log that I wrote while quickly sliding my finger up
+and down the slider. I arranged a slightly slowed down event loop to make
+sure that I would got more events than my code could chew on.
+
+```
+Queue len = 2 | Msg = 4:4:1:0:3:9:d   | Evt = touch   slider 13
+Queue len = 4 | Msg = 4:4:1:0:3:6:a   | Evt = touch   slider 16
+Queue len = 5 | Msg = 4:4:1:0:3:5:9   | Evt = touch   slider 17
+Queue len = 6 | Msg = 4:4:1:0:3:a:e   | Evt = touch   slider 12
+Queue len = 7 | Msg = 4:4:1:0:3:e:12  | Evt = touch   slider 8
+Queue len = 6 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+Queue len = 5 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+Queue len = 4 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+Queue len = 4 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+Queue len = 3 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+Queue len = 2 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+Queue len = 1 | Msg = 4:4:1:0:4:13:18 | Evt = release slider 3
+```
+Proof that the incoming flow rate was too high can be recognized by the
+fact that the event queue length increased. Had all events been
+processed on time, then the queue length would not have risen above 1.
+
+As you can see, quite a few events are missing. So that is proof that
+the front panel has no event queueing whatsoever. This raises the requirement
+to process incoming events as fast as possible. Implementing a local queue
+in the ESP firmware might be a good way to buffer an overflow of events.
+
+It is clear that the last 7 messages contain exactly the same event,
+while in reality different events occurred. From this, we can derive that
+the last event can be read as often as we like. It is not replaced with
+an alternative "no event available"-style message.
+
